@@ -3,6 +3,7 @@
 import {
   AnimatePresence,
   motion,
+  type MotionValue,
   useMotionValue,
   useSpring,
   useTransform,
@@ -32,12 +33,20 @@ const CENTRE_TEXTS = [
 ];
 const ZOOM_TRIGGER_PX = SEGMENT_PX * CENTRE_TEXTS.length; // = 2700
 
+const CAROUSEL_COMMIT_PX = 500; // additional scroll in carousel before nav
+
 export function OrbitStage() {
   const router = useRouter();
   const rotation = useMotionValue(0); // degrees
   const smooth = useSpring(rotation, { stiffness: 38, damping: 28, mass: 1.1 });
+  const progressRaw = useMotionValue(0); // 0..1 — drives orbit scale
+  const progress = useSpring(progressRaw, { stiffness: 90, damping: 24, mass: 0.7 });
+  const orbitScale = useTransform(progress, [0, 1], [0.55, 1.05]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAccum = useRef(0);
+  const carouselAccum = useRef(0);
+  const navLockRef = useRef(false);
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [textIdx, setTextIdx] = useState(0);
@@ -49,6 +58,10 @@ export function OrbitStage() {
       Math.floor(scrollAccum.current / SEGMENT_PX),
     );
     setTextIdx((curr) => (curr === i ? curr : i));
+  }
+
+  function updateProgress() {
+    progressRaw.set(Math.min(1, scrollAccum.current / ZOOM_TRIGGER_PX));
   }
 
   // idle drift in orbit mode (paused while carousel is active)
@@ -90,6 +103,8 @@ export function OrbitStage() {
       }
     });
     scrollAccum.current = 0;
+    carouselAccum.current = 0;
+    navLockRef.current = false;
     setSelectedIdx(bestIdx);
   }
 
@@ -102,19 +117,30 @@ export function OrbitStage() {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-if (isCarousel) {
-        const now = performance.now();
-        if (now - lastWheelAt < 320) return;
-        if (Math.abs(e.deltaY) < 10) return;
-        lastWheelAt = now;
-        if (e.deltaY > 0) next();
-        else prev();
+      if (isCarousel) {
+        if (navLockRef.current) return;
+        if (e.deltaY > 0) {
+          carouselAccum.current += e.deltaY;
+          if (carouselAccum.current > CAROUSEL_COMMIT_PX && selectedIdx !== null) {
+            navLockRef.current = true;
+            router.push(`/work/${WORKS[selectedIdx].slug}`);
+          }
+        } else {
+          // scrolling back: drain commit budget, allow prev/next via throttled steps
+          carouselAccum.current = Math.max(0, carouselAccum.current + e.deltaY);
+          const now = performance.now();
+          if (now - lastWheelAt > 320 && Math.abs(e.deltaY) > 10) {
+            lastWheelAt = now;
+            prev();
+          }
+        }
         return;
       }
 
       rotation.set(rotation.get() + e.deltaY * 0.18);
-      scrollAccum.current += Math.abs(e.deltaY);
+      scrollAccum.current = Math.max(0, scrollAccum.current + Math.abs(e.deltaY));
       updateTextFromScroll();
+      updateProgress();
       if (scrollAccum.current > ZOOM_TRIGGER_PX) focusNearest();
     };
 
@@ -125,14 +151,23 @@ if (isCarousel) {
     const onTouchMove = (e: TouchEvent) => {
       const dy = e.touches[0].clientY - touchY;
       touchY = e.touches[0].clientY;
-if (isCarousel) {
-        if (dy < -40) next();
-        else if (dy > 40) prev();
+      if (isCarousel) {
+        if (navLockRef.current) return;
+        if (dy < 0) {
+          carouselAccum.current += -dy * 6;
+          if (carouselAccum.current > CAROUSEL_COMMIT_PX && selectedIdx !== null) {
+            navLockRef.current = true;
+            router.push(`/work/${WORKS[selectedIdx].slug}`);
+          }
+        } else if (dy > 40) {
+          prev();
+        }
         return;
       }
       rotation.set(rotation.get() - dy * 0.55);
-      scrollAccum.current += Math.abs(dy) * 6; // touch counts faster
+      scrollAccum.current += Math.abs(dy) * 6;
       updateTextFromScroll();
+      updateProgress();
       if (scrollAccum.current > ZOOM_TRIGGER_PX) focusNearest();
     };
 
@@ -174,6 +209,9 @@ if (isCarousel) {
             idx={selectedIdx}
             onClose={() => {
               scrollAccum.current = 0;
+              carouselAccum.current = 0;
+              navLockRef.current = false;
+              progressRaw.set(0);
               setTextIdx(0);
               setSelectedIdx(null);
             }}
@@ -185,6 +223,7 @@ if (isCarousel) {
           <OrbitView
             key="orbit"
             smooth={smooth}
+            orbitScale={orbitScale}
             textIdx={textIdx}
             onSelect={(i) => setSelectedIdx(i)}
           />
@@ -198,10 +237,12 @@ if (isCarousel) {
 
 function OrbitView({
   smooth,
+  orbitScale,
   textIdx,
   onSelect,
 }: {
   smooth: ReturnType<typeof useSpring>;
+  orbitScale: MotionValue<number>;
   textIdx: number;
   onSelect: (i: number) => void;
 }) {
@@ -234,14 +275,19 @@ function OrbitView({
 
       <ProgressDots count={CENTRE_TEXTS.length} active={textIdx} />
 
-      {WORKS.map((w, i) => (
-        <OrbitItem
-          key={w.id}
-          work={w}
-          smooth={smooth}
-          onClick={() => onSelect(i)}
-        />
-      ))}
+      <motion.div
+        style={{ scale: orbitScale }}
+        className="absolute inset-0"
+      >
+        {WORKS.map((w, i) => (
+          <OrbitItem
+            key={w.id}
+            work={w}
+            smooth={smooth}
+            onClick={() => onSelect(i)}
+          />
+        ))}
+      </motion.div>
     </motion.div>
   );
 }
