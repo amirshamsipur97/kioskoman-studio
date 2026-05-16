@@ -24,7 +24,13 @@ import { MockThumb } from "./MockThumb";
  */
 
 const FOCUS_ANGLE = 270; // top of the viewport feels like "next up"
-const ZOOM_TRIGGER_PX = 1800; // accumulated wheel delta before zoom fires
+const SEGMENT_PX = 900; // accumulated wheel delta per centre text
+const CENTRE_TEXTS = [
+  "AI-native studio building brands and web\nexperiences for high-growth startups",
+  "Crafted from first principles —\npositioning, brand, and product in one room",
+  "Ready to ship. Scroll once more\nto step inside a project",
+];
+const ZOOM_TRIGGER_PX = SEGMENT_PX * CENTRE_TEXTS.length; // = 2700
 const ZOOM_DURATION_MS = 900; // wait this long before navigating
 
 export function OrbitStage() {
@@ -36,8 +42,17 @@ export function OrbitStage() {
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
+  const [textIdx, setTextIdx] = useState(0);
   const isCarousel = selectedIdx !== null;
   const isZooming = zoomIdx !== null;
+
+  function updateTextFromScroll() {
+    const i = Math.min(
+      CENTRE_TEXTS.length - 1,
+      Math.floor(scrollAccum.current / SEGMENT_PX),
+    );
+    setTextIdx((curr) => (curr === i ? curr : i));
+  }
 
   // idle drift in orbit mode (paused while carousel/zoom is active)
   useEffect(() => {
@@ -105,14 +120,10 @@ export function OrbitStage() {
         return;
       }
 
-      // softer rotation factor — feels like gliding rather than jumping
       rotation.set(rotation.get() + e.deltaY * 0.18);
-
-      // accumulate magnitude to detect "user has scrolled enough"
       scrollAccum.current += Math.abs(e.deltaY);
-      if (scrollAccum.current > ZOOM_TRIGGER_PX) {
-        triggerZoom();
-      }
+      updateTextFromScroll();
+      if (scrollAccum.current > ZOOM_TRIGGER_PX) triggerZoom();
     };
 
     let touchY = 0;
@@ -130,6 +141,7 @@ export function OrbitStage() {
       }
       rotation.set(rotation.get() - dy * 0.55);
       scrollAccum.current += Math.abs(dy) * 6; // touch counts faster
+      updateTextFromScroll();
       if (scrollAccum.current > ZOOM_TRIGGER_PX) triggerZoom();
     };
 
@@ -180,6 +192,7 @@ export function OrbitStage() {
           <OrbitView
             key="orbit"
             smooth={smooth}
+            textIdx={textIdx}
             onSelect={(i) => setSelectedIdx(i)}
           />
         )}
@@ -192,11 +205,15 @@ export function OrbitStage() {
 
 function OrbitView({
   smooth,
+  textIdx,
   onSelect,
 }: {
   smooth: ReturnType<typeof useSpring>;
+  textIdx: number;
   onSelect: (i: number) => void;
 }) {
+  const text = CENTRE_TEXTS[textIdx] ?? CENTRE_TEXTS[0];
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -207,12 +224,22 @@ function OrbitView({
     >
       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black" />
 
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-8 text-center px-6 max-w-[40ch]">
-        <p className="text-[13px] sm:text-[13.5px] leading-[1.5] tracking-[-0.005em] text-black/75">
-          AI-native studio building brands and web
-          <br className="hidden sm:block" /> experiences for high-growth startups
-        </p>
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-8 text-center px-6 w-[44ch] max-w-[88vw]">
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={textIdx}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className="text-[13px] sm:text-[13.5px] leading-[1.5] tracking-[-0.005em] text-black/75 whitespace-pre-line"
+          >
+            {text}
+          </motion.p>
+        </AnimatePresence>
       </div>
+
+      <ProgressDots count={CENTRE_TEXTS.length} active={textIdx} />
 
       {WORKS.map((w, i) => (
         <OrbitItem
@@ -223,6 +250,23 @@ function OrbitView({
         />
       ))}
     </motion.div>
+  );
+}
+
+function ProgressDots({ count, active }: { count: number; active: number }) {
+  return (
+    <div className="absolute left-1/2 bottom-24 -translate-x-1/2 flex items-center gap-1.5">
+      {Array.from({ length: count }).map((_, i) => (
+        <span
+          key={i}
+          className={
+            i === active
+              ? "w-4 h-1 rounded-full bg-black/70 transition-all duration-300"
+              : "w-1 h-1 rounded-full bg-black/25 transition-all duration-300"
+          }
+        />
+      ))}
+    </div>
   );
 }
 
