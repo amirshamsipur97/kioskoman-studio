@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 380" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#3a2622"/>
+      <stop offset="55%" stop-color="#1a100e"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </radialGradient>
+    <radialGradient id="skin" cx="50%" cy="48%" r="48%">
+      <stop offset="0%" stop-color="#c89684"/>
+      <stop offset="55%" stop-color="#8e5d4b"/>
+      <stop offset="100%" stop-color="#3b231b"/>
+    </radialGradient>
+    <radialGradient id="hair" cx="50%" cy="32%" r="55%">
+      <stop offset="0%" stop-color="#3b2a25"/>
+      <stop offset="100%" stop-color="#0e0807"/>
+    </radialGradient>
+    <linearGradient id="sweater" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1614"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+  </defs>
+  <rect width="340" height="380" fill="url(#bg)"/>
+  <!-- subtle highlight -->
+  <ellipse cx="120" cy="120" rx="160" ry="120" fill="#ffe4d0" opacity="0.04"/>
+  <!-- hair back -->
+  <path d="M70 210 C 55 130, 110 60, 175 60 C 240 60, 285 120, 270 210 L 270 280 L 70 280 Z" fill="url(#hair)"/>
+  <!-- shoulders / sweater -->
+  <path d="M30 380 C 30 310, 90 260, 170 260 C 250 260, 310 310, 310 380 Z" fill="url(#sweater)"/>
+  <!-- neck -->
+  <rect x="148" y="230" width="44" height="38" rx="14" fill="url(#skin)" opacity="0.95"/>
+  <!-- face -->
+  <ellipse cx="170" cy="190" rx="76" ry="92" fill="url(#skin)"/>
+  <!-- hair front -->
+  <path d="M92 150 C 100 92, 175 70, 245 122 C 252 140, 245 162, 232 168 C 218 142, 195 130, 170 130 C 145 130, 122 142, 108 168 C 96 162, 88 156, 92 150 Z" fill="url(#hair)"/>
+  <!-- side hair -->
+  <path d="M84 240 C 78 200, 86 160, 96 152 L 110 180 L 110 248 Z" fill="url(#hair)"/>
+  <path d="M256 240 C 262 200, 254 160, 244 152 L 230 180 L 230 248 Z" fill="url(#hair)"/>
+  <!-- eyes -->
+  <ellipse cx="146" cy="200" rx="6" ry="3.2" fill="#1c1410"/>
+  <ellipse cx="194" cy="200" rx="6" ry="3.2" fill="#1c1410"/>
+  <!-- subtle smile -->
+  <path d="M152 232 Q 170 246, 188 232" stroke="#5a3022" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.85"/>
+  <!-- earring dots -->
+  <circle cx="98" cy="215" r="2" fill="#d4b88a" opacity="0.8"/>
+  <circle cx="242" cy="215" r="2" fill="#d4b88a" opacity="0.8"/>
+</svg>

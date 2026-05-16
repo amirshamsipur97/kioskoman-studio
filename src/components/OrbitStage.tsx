@@ -8,6 +8,7 @@ import {
   useTransform,
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { WORKS, type Work } from "@/lib/works";
 import { MockThumb } from "./MockThumb";
 
@@ -15,9 +16,11 @@ import { MockThumb } from "./MockThumb";
  * Centre headline + a slowly rotating orbit of work thumbnails.
  * - Wheel / touch / arrow keys nudge the rotation.
  * - Idle, the orbit drifts at a constant slow rate (no jank).
- * - Click a thumbnail -> carousel mode with prev/next arrows.
+ * - Click a thumbnail -> carousel mode (peek neighbours above/below).
+ * - Click the centre image in carousel mode -> navigate to /work/[slug].
  */
 export function OrbitStage() {
+  const router = useRouter();
   const rotation = useMotionValue(0); // degrees
   const smooth = useSpring(rotation, { stiffness: 80, damping: 22, mass: 0.6 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -25,30 +28,46 @@ export function OrbitStage() {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const isCarousel = selectedIdx !== null;
 
-  // idle drift
+  // idle drift in orbit mode
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      if (!isCarousel) {
-        rotation.set(rotation.get() + dt * 4); // 4 deg/sec
-      }
+      if (!isCarousel) rotation.set(rotation.get() + dt * 4); // 4 deg/sec
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [rotation, isCarousel]);
 
-  // wheel + touch
+  const next = () =>
+    setSelectedIdx((i) => (i === null ? 0 : (i + 1) % WORKS.length));
+  const prev = () =>
+    setSelectedIdx((i) =>
+      i === null ? 0 : (i - 1 + WORKS.length) % WORKS.length,
+    );
+
+  // wheel / touch
   useEffect(() => {
-    if (isCarousel) return;
     const el = containerRef.current;
     if (!el) return;
 
+    let lastWheelAt = 0;
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (isCarousel) {
+        // throttle so each click of the wheel advances at most once per 320 ms
+        const now = performance.now();
+        if (now - lastWheelAt < 320) return;
+        if (Math.abs(e.deltaY) < 10) return;
+        lastWheelAt = now;
+        if (e.deltaY > 0) next();
+        else prev();
+        return;
+      }
       rotation.set(rotation.get() + e.deltaY * 0.35);
     };
 
@@ -59,6 +78,16 @@ export function OrbitStage() {
     const onTouchMove = (e: TouchEvent) => {
       const dy = e.touches[0].clientY - touchY;
       touchY = e.touches[0].clientY;
+      if (isCarousel) {
+        if (dy < -40) {
+          next();
+          touchY = e.touches[0].clientY;
+        } else if (dy > 40) {
+          prev();
+          touchY = e.touches[0].clientY;
+        }
+        return;
+      }
       rotation.set(rotation.get() - dy * 0.8);
     };
 
@@ -72,24 +101,20 @@ export function OrbitStage() {
     };
   }, [rotation, isCarousel]);
 
-  const next = () =>
-    setSelectedIdx((i) => (i === null ? 0 : (i + 1) % WORKS.length));
-  const prev = () =>
-    setSelectedIdx((i) =>
-      i === null ? 0 : (i - 1 + WORKS.length) % WORKS.length,
-    );
-
   // keyboard nav in carousel
   useEffect(() => {
     if (!isCarousel) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSelectedIdx(null);
-      if (e.key === "ArrowRight") next();
-      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") next();
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") prev();
+      if (e.key === "Enter" && selectedIdx !== null) {
+        router.push(`/work/${WORKS[selectedIdx].slug}`);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isCarousel]);
+  }, [isCarousel, selectedIdx, router]);
 
   return (
     <div
@@ -100,10 +125,11 @@ export function OrbitStage() {
         {isCarousel ? (
           <CarouselView
             key="carousel"
-            work={WORKS[selectedIdx]}
+            idx={selectedIdx}
             onClose={() => setSelectedIdx(null)}
             onPrev={prev}
             onNext={next}
+            onOpen={(slug) => router.push(`/work/${slug}`)}
           />
         ) : (
           <OrbitView
@@ -134,18 +160,15 @@ function OrbitView({
       transition={{ duration: 0.35 }}
       className="relative w-full h-full"
     >
-      {/* centre dot */}
-      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-black" />
+      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black" />
 
-      {/* headline beneath the dot */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-12 text-center px-6 max-w-[36ch]">
-        <p className="text-[17px] sm:text-[19px] leading-[1.5] tracking-[-0.005em]">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-10 text-center px-6 max-w-[40ch]">
+        <p className="text-[16.5px] sm:text-[17.5px] leading-[1.5] tracking-[-0.005em] text-black/85">
           AI-native studio building brands and web
           <br className="hidden sm:block" /> experiences for high-growth startups
         </p>
       </div>
 
-      {/* orbiting thumbs */}
       {WORKS.map((w, i) => (
         <OrbitItem
           key={w.id}
@@ -167,8 +190,6 @@ function OrbitItem({
   smooth: ReturnType<typeof useSpring>;
   onClick: () => void;
 }) {
-  // position around the centre: centre + r * (cos(a + rotation), sin(a + rotation))
-  // motion's `x` / `y` style props need string output for unit-aware values.
   const x = useTransform(smooth, (r) => {
     const a = ((work.angle + r) * Math.PI) / 180;
     return `${Math.cos(a) * work.radius}vmin`;
@@ -205,16 +226,24 @@ function OrbitItem({
 /* ------------------------------- Carousel view ----------------------------- */
 
 function CarouselView({
-  work,
+  idx,
   onClose,
   onPrev,
   onNext,
+  onOpen,
 }: {
-  work: Work;
+  idx: number;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
+  onOpen: (slug: string) => void;
 }) {
+  const prevIdx = (idx - 1 + WORKS.length) % WORKS.length;
+  const nextIdx = (idx + 1) % WORKS.length;
+  const current = WORKS[idx];
+  const prevWork = WORKS[prevIdx];
+  const nextWork = WORKS[nextIdx];
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -227,43 +256,95 @@ function CarouselView({
         type="button"
         onClick={onPrev}
         aria-label="Previous project"
-        className="absolute left-6 sm:left-10 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black text-white flex items-center justify-center hover:bg-zinc-800 transition-colors"
+        className="absolute left-6 sm:left-10 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-[#0a0a0a] text-white flex items-center justify-center hover:bg-zinc-800 transition-colors"
       >
         <Arrow direction="left" />
       </button>
 
+      {/* peek: previous item, top */}
+      <PeekItem work={prevWork} position="top" onClick={onPrev} />
+
+      {/* current item, centre */}
       <motion.figure
-        key={work.id}
-        initial={{ opacity: 0, scale: 0.94 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.94 }}
+        key={current.id}
+        initial={{ opacity: 0, scale: 0.94, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: -8 }}
         transition={{ type: "spring", stiffness: 220, damping: 26 }}
-        className="flex flex-col items-center gap-6"
+        className="flex flex-col items-center gap-5"
       >
         <button
           type="button"
-          onClick={onClose}
-          aria-label="Back to overview"
-          className="relative rounded-full overflow-hidden ring-1 ring-black/10 shadow-[0_8px_60px_rgba(0,0,0,0.08)]"
-          style={{ width: "min(60vmin, 560px)", height: "min(60vmin, 560px)" }}
+          onClick={() => onOpen(current.slug)}
+          aria-label={`View ${current.title} case study`}
+          className="relative rounded-full overflow-hidden ring-1 ring-black/10 shadow-[0_18px_60px_rgba(0,0,0,0.09)] cursor-pointer"
+          style={{
+            width: "min(58vmin, 540px)",
+            height: "min(58vmin, 540px)",
+          }}
         >
-          <MockThumb work={work} />
+          <MockThumb work={current} />
         </button>
         <figcaption className="text-center">
-          <div className="text-2xl font-semibold tracking-tight">{work.title}</div>
-          <div className="text-sm text-black/55 mt-1">{work.tag}</div>
+          <div className="text-[26px] font-medium tracking-[-0.01em] text-black/90">
+            {current.title}
+          </div>
         </figcaption>
       </motion.figure>
+
+      {/* peek: next item, bottom */}
+      <PeekItem work={nextWork} position="bottom" onClick={onNext} />
 
       <button
         type="button"
         onClick={onNext}
         aria-label="Next project"
-        className="absolute right-6 sm:right-10 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black text-white flex items-center justify-center hover:bg-zinc-800 transition-colors"
+        className="absolute right-6 sm:right-10 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-[#0a0a0a] text-white flex items-center justify-center hover:bg-zinc-800 transition-colors"
       >
         <Arrow direction="right" />
       </button>
+
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Back to overview"
+        className="absolute inset-x-0 top-0 h-24 sm:h-32 cursor-zoom-out"
+      />
     </motion.div>
+  );
+}
+
+function PeekItem({
+  work,
+  position,
+  onClick,
+}: {
+  work: Work;
+  position: "top" | "bottom";
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      aria-label={`${position === "top" ? "Previous" : "Next"} — ${work.title}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25, delay: 0.05 }}
+      className={`absolute left-1/2 -translate-x-1/2 rounded-full overflow-hidden ring-1 ring-black/5 shadow-[0_4px_18px_rgba(0,0,0,0.06)] cursor-pointer ${
+        position === "top"
+          ? "-translate-y-[calc(50%+34vmin)]"
+          : "translate-y-[calc(50%+22vmin)]"
+      }`}
+      style={{
+        top: "50%",
+        width: "min(22vmin, 200px)",
+        height: "min(22vmin, 200px)",
+      }}
+    >
+      <MockThumb work={work} />
+    </motion.button>
   );
 }
 
@@ -277,7 +358,13 @@ function Arrow({ direction }: { direction: "left" | "right" }) {
       style={{ transform: direction === "left" ? "rotate(180deg)" : "none" }}
       aria-hidden
     >
-      <path d="M3 7 H11 M7 3 L11 7 L7 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M3 7 H11 M7 3 L11 7 L7 11"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

@@ -6,12 +6,12 @@ import { MenuTrigger } from "@/components/MenuTrigger";
 import { MenuPanel } from "@/components/MenuPanel";
 import { CtaPill } from "@/components/CtaPill";
 import { OrbitStage } from "@/components/OrbitStage";
-import { ContactModal } from "@/components/ContactModal";
+import { ChatPanel } from "@/components/ChatPanel";
 import { SpinnerDots } from "@/components/SpinnerDots";
 
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [contactOpen, setContactOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   return (
     <main className="fixed inset-0 overflow-hidden">
@@ -24,13 +24,12 @@ export default function Home() {
 
       <OrbitStage />
 
-      <CtaPill onClick={() => setContactOpen(true)} />
+      {!chatOpen && <CtaPill onClick={() => setChatOpen(true)} />}
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
 
       <div className="fixed bottom-7 right-7 z-30 text-black/70" aria-hidden>
         <SpinnerDots size={22} />
       </div>
-
-      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </main>
   );
 }
