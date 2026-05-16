@@ -18,7 +18,16 @@ export type Work = {
   /** dominant tile colour */
   hue: string;
   /** decorative pattern type for the SVG mock */
-  pattern: "browser" | "monitor" | "phone" | "laptop" | "poster" | "tablet";
+  pattern:
+    | "browser"
+    | "monitor"
+    | "phone"
+    | "laptop"
+    | "poster"
+    | "tablet"
+    | "label";
+  /** uppercase caption rendered when pattern is "label" */
+  label?: string;
   /** case-study page copy */
   hero: {
     eyebrow?: string;
@@ -40,7 +49,8 @@ export const WORKS: Work[] = [
     radius: 40,
     size: 12,
     hue: "#cfe9d2",
-    pattern: "poster",
+    pattern: "label",
+    label: "INTRODUCTION",
     hero: {
       eyebrow: "Brand",
       headline: "A flexible identity for a moving target.",
@@ -64,7 +74,8 @@ export const WORKS: Work[] = [
     radius: 40,
     size: 12,
     hue: "#f3efe8",
-    pattern: "monitor",
+    pattern: "label",
+    label: "OUR PHILOSOPHY",
     hero: {
       eyebrow: "Web",
       headline: "Subjective — opinionated tools for sharper thinking.",
@@ -160,7 +171,8 @@ export const WORKS: Work[] = [
     radius: 40,
     size: 12,
     hue: "#efe7da",
-    pattern: "monitor",
+    pattern: "label",
+    label: "REAL ESTATE",
     hero: {
       eyebrow: "Brand & Web",
       headline: "Hanover Park combines AI-native services with software.",
@@ -184,7 +196,8 @@ export const WORKS: Work[] = [
     radius: 40,
     size: 12,
     hue: "#c8a988",
-    pattern: "phone",
+    pattern: "label",
+    label: "AUTOMOTIVE",
     hero: {
       eyebrow: "Product",
       headline: "Courier — a wallet for everyone who isn't into wallets.",
@@ -208,7 +221,8 @@ export const WORKS: Work[] = [
     radius: 40,
     size: 12,
     hue: "#e2dfd6",
-    pattern: "monitor",
+    pattern: "label",
+    label: "VISUAL STORYTELLING",
     hero: {
       eyebrow: "Web",
       headline: "Atlas — climate data, ready for the work.",

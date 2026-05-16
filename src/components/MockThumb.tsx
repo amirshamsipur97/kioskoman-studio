@@ -7,6 +7,34 @@ import { Work } from "@/lib/works";
  * from a distance.
  */
 export function MockThumb({ work }: { work: Work }) {
+  if (work.pattern === "label") {
+    const text = (work.label ?? work.title).toUpperCase();
+    // Auto-fit font size to the label length so longer phrases stay readable
+    const fontSize = text.length <= 12 ? 7 : text.length <= 18 ? 5.5 : 4.5;
+    return (
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid slice"
+        className="absolute inset-0 w-full h-full pointer-events-none"
+      >
+        <rect width="100" height="100" fill="#0a0a0a" />
+        <text
+          x="50"
+          y="50"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="#ffffff"
+          fontFamily="var(--font-geist-sans), system-ui, sans-serif"
+          fontWeight={500}
+          fontSize={fontSize}
+          letterSpacing="0.35"
+        >
+          {text}
+        </text>
+      </svg>
+    );
+  }
+
   const isDark = work.hue.startsWith("#1") || work.hue.startsWith("#2");
   const ink = isDark ? "#f1ece4" : "#0a0a0a";
   const screen = isDark ? "#0d130f" : "#1b1f24";
