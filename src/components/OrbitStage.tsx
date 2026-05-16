@@ -14,33 +14,46 @@ import { MockThumb } from "./MockThumb";
 
 /**
  * Centre headline + a slowly rotating orbit of work thumbnails.
- * - Wheel / touch / arrow keys nudge the rotation.
- * - Idle, the orbit drifts at a constant slow rate (no jank).
- * - Click a thumbnail -> carousel mode (peek neighbours above/below).
- * - Click the centre image in carousel mode -> navigate to /work/[slug].
+ *
+ * Interaction:
+ * - Wheel / touch rotates the whole orbit together — softly.
+ * - After enough cumulative scroll the closest-to-front thumbnail zooms
+ *   to full-screen and the router navigates to its case study.
+ * - Click any thumbnail to open carousel mode (peek prev/next).
+ * - In carousel mode, clicking the centre image opens the case study.
  */
+
+const FOCUS_ANGLE = 270; // top of the viewport feels like "next up"
+const ZOOM_TRIGGER_PX = 1800; // accumulated wheel delta before zoom fires
+const ZOOM_DURATION_MS = 900; // wait this long before navigating
+
 export function OrbitStage() {
   const router = useRouter();
   const rotation = useMotionValue(0); // degrees
-  const smooth = useSpring(rotation, { stiffness: 80, damping: 22, mass: 0.6 });
+  const smooth = useSpring(rotation, { stiffness: 38, damping: 28, mass: 1.1 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollAccum = useRef(0);
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   const isCarousel = selectedIdx !== null;
+  const isZooming = zoomIdx !== null;
 
-  // idle drift in orbit mode
+  // idle drift in orbit mode (paused while carousel/zoom is active)
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      if (!isCarousel) rotation.set(rotation.get() + dt * 4); // 4 deg/sec
+      if (!isCarousel && !isZooming) {
+        rotation.set(rotation.get() + dt * 3); // 3 deg/sec — gentle
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [rotation, isCarousel]);
+  }, [rotation, isCarousel, isZooming]);
 
   const next = () =>
     setSelectedIdx((i) => (i === null ? 0 : (i + 1) % WORKS.length));
@@ -48,6 +61,29 @@ export function OrbitStage() {
     setSelectedIdx((i) =>
       i === null ? 0 : (i - 1 + WORKS.length) % WORKS.length,
     );
+
+  function triggerZoom() {
+    // find the work currently closest to the FOCUS_ANGLE (in screen space)
+    const r = ((rotation.get() % 360) + 360) % 360;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    WORKS.forEach((w, i) => {
+      const displayed = ((w.angle + r) % 360 + 360) % 360;
+      const d = Math.min(
+        Math.abs(displayed - FOCUS_ANGLE),
+        360 - Math.abs(displayed - FOCUS_ANGLE),
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    });
+    setZoomIdx(bestIdx);
+    scrollAccum.current = 0;
+    window.setTimeout(() => {
+      router.push(`/work/${WORKS[bestIdx].slug}`);
+    }, ZOOM_DURATION_MS);
+  }
 
   // wheel / touch
   useEffect(() => {
@@ -58,8 +94,8 @@ export function OrbitStage() {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (isZooming) return;
       if (isCarousel) {
-        // throttle so each click of the wheel advances at most once per 320 ms
         const now = performance.now();
         if (now - lastWheelAt < 320) return;
         if (Math.abs(e.deltaY) < 10) return;
@@ -68,7 +104,15 @@ export function OrbitStage() {
         else prev();
         return;
       }
-      rotation.set(rotation.get() + e.deltaY * 0.35);
+
+      // softer rotation factor — feels like gliding rather than jumping
+      rotation.set(rotation.get() + e.deltaY * 0.18);
+
+      // accumulate magnitude to detect "user has scrolled enough"
+      scrollAccum.current += Math.abs(e.deltaY);
+      if (scrollAccum.current > ZOOM_TRIGGER_PX) {
+        triggerZoom();
+      }
     };
 
     let touchY = 0;
@@ -78,17 +122,15 @@ export function OrbitStage() {
     const onTouchMove = (e: TouchEvent) => {
       const dy = e.touches[0].clientY - touchY;
       touchY = e.touches[0].clientY;
+      if (isZooming) return;
       if (isCarousel) {
-        if (dy < -40) {
-          next();
-          touchY = e.touches[0].clientY;
-        } else if (dy > 40) {
-          prev();
-          touchY = e.touches[0].clientY;
-        }
+        if (dy < -40) next();
+        else if (dy > 40) prev();
         return;
       }
-      rotation.set(rotation.get() - dy * 0.8);
+      rotation.set(rotation.get() - dy * 0.55);
+      scrollAccum.current += Math.abs(dy) * 6; // touch counts faster
+      if (scrollAccum.current > ZOOM_TRIGGER_PX) triggerZoom();
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -99,7 +141,8 @@ export function OrbitStage() {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
     };
-  }, [rotation, isCarousel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rotation, isCarousel, isZooming]);
 
   // keyboard nav in carousel
   useEffect(() => {
@@ -122,7 +165,9 @@ export function OrbitStage() {
       className="absolute inset-0 flex items-center justify-center overflow-hidden"
     >
       <AnimatePresence mode="wait">
-        {isCarousel ? (
+        {isZooming ? (
+          <ZoomView key="zoom" work={WORKS[zoomIdx]} />
+        ) : isCarousel ? (
           <CarouselView
             key="carousel"
             idx={selectedIdx}
@@ -162,8 +207,8 @@ function OrbitView({
     >
       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black" />
 
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-10 text-center px-6 max-w-[40ch]">
-        <p className="text-[16.5px] sm:text-[17.5px] leading-[1.5] tracking-[-0.005em] text-black/85">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-8 text-center px-6 max-w-[40ch]">
+        <p className="text-[13px] sm:text-[13.5px] leading-[1.5] tracking-[-0.005em] text-black/75">
           AI-native studio building brands and web
           <br className="hidden sm:block" /> experiences for high-growth startups
         </p>
@@ -223,6 +268,53 @@ function OrbitItem({
   );
 }
 
+/* --------------------------------- Zoom view -------------------------------- */
+
+function ZoomView({ work }: { work: Work }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+    >
+      <motion.div
+        initial={{
+          width: "12vmin",
+          height: "12vmin",
+          borderRadius: "9999px",
+        }}
+        animate={{
+          width: "180vmax",
+          height: "180vmax",
+          borderRadius: "0px",
+        }}
+        transition={{
+          duration: ZOOM_DURATION_MS / 1000,
+          ease: [0.65, 0, 0.35, 1],
+        }}
+        className="overflow-hidden ring-1 ring-black/5 shadow-[0_8px_60px_rgba(0,0,0,0.18)]"
+      >
+        <MockThumb work={work} />
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35, duration: 0.3 }}
+        className="absolute bottom-12 left-0 right-0 text-center"
+      >
+        <div className="text-[12px] tracking-[0.18em] uppercase text-white/70">
+          {work.tag}
+        </div>
+        <div className="text-[28px] font-medium text-white tracking-[-0.01em]">
+          {work.title}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ------------------------------- Carousel view ----------------------------- */
 
 function CarouselView({
@@ -261,10 +353,8 @@ function CarouselView({
         <Arrow direction="left" />
       </button>
 
-      {/* peek: previous item, top */}
       <PeekItem work={prevWork} position="top" onClick={onPrev} />
 
-      {/* current item, centre */}
       <motion.figure
         key={current.id}
         initial={{ opacity: 0, scale: 0.94, y: 8 }}
@@ -292,7 +382,6 @@ function CarouselView({
         </figcaption>
       </motion.figure>
 
-      {/* peek: next item, bottom */}
       <PeekItem work={nextWork} position="bottom" onClick={onNext} />
 
       <button
