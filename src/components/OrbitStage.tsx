@@ -31,7 +31,6 @@ const CENTRE_TEXTS = [
   "Ready to ship. Scroll once more\nto step inside a project",
 ];
 const ZOOM_TRIGGER_PX = SEGMENT_PX * CENTRE_TEXTS.length; // = 2700
-const ZOOM_DURATION_MS = 900; // wait this long before navigating
 
 export function OrbitStage() {
   const router = useRouter();
@@ -41,10 +40,8 @@ export function OrbitStage() {
   const scrollAccum = useRef(0);
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   const [textIdx, setTextIdx] = useState(0);
   const isCarousel = selectedIdx !== null;
-  const isZooming = zoomIdx !== null;
 
   function updateTextFromScroll() {
     const i = Math.min(
@@ -54,21 +51,21 @@ export function OrbitStage() {
     setTextIdx((curr) => (curr === i ? curr : i));
   }
 
-  // idle drift in orbit mode (paused while carousel/zoom is active)
+  // idle drift in orbit mode (paused while carousel is active)
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      if (!isCarousel && !isZooming) {
+      if (!isCarousel) {
         rotation.set(rotation.get() + dt * 3); // 3 deg/sec — gentle
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [rotation, isCarousel, isZooming]);
+  }, [rotation, isCarousel]);
 
   const next = () =>
     setSelectedIdx((i) => (i === null ? 0 : (i + 1) % WORKS.length));
@@ -77,8 +74,7 @@ export function OrbitStage() {
       i === null ? 0 : (i - 1 + WORKS.length) % WORKS.length,
     );
 
-  function triggerZoom() {
-    // find the work currently closest to the FOCUS_ANGLE (in screen space)
+  function focusNearest() {
     const r = ((rotation.get() % 360) + 360) % 360;
     let bestIdx = 0;
     let bestDist = Infinity;
@@ -93,11 +89,8 @@ export function OrbitStage() {
         bestIdx = i;
       }
     });
-    setZoomIdx(bestIdx);
     scrollAccum.current = 0;
-    window.setTimeout(() => {
-      router.push(`/work/${WORKS[bestIdx].slug}`);
-    }, ZOOM_DURATION_MS);
+    setSelectedIdx(bestIdx);
   }
 
   // wheel / touch
@@ -109,8 +102,7 @@ export function OrbitStage() {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (isZooming) return;
-      if (isCarousel) {
+if (isCarousel) {
         const now = performance.now();
         if (now - lastWheelAt < 320) return;
         if (Math.abs(e.deltaY) < 10) return;
@@ -123,7 +115,7 @@ export function OrbitStage() {
       rotation.set(rotation.get() + e.deltaY * 0.18);
       scrollAccum.current += Math.abs(e.deltaY);
       updateTextFromScroll();
-      if (scrollAccum.current > ZOOM_TRIGGER_PX) triggerZoom();
+      if (scrollAccum.current > ZOOM_TRIGGER_PX) focusNearest();
     };
 
     let touchY = 0;
@@ -133,8 +125,7 @@ export function OrbitStage() {
     const onTouchMove = (e: TouchEvent) => {
       const dy = e.touches[0].clientY - touchY;
       touchY = e.touches[0].clientY;
-      if (isZooming) return;
-      if (isCarousel) {
+if (isCarousel) {
         if (dy < -40) next();
         else if (dy > 40) prev();
         return;
@@ -142,7 +133,7 @@ export function OrbitStage() {
       rotation.set(rotation.get() - dy * 0.55);
       scrollAccum.current += Math.abs(dy) * 6; // touch counts faster
       updateTextFromScroll();
-      if (scrollAccum.current > ZOOM_TRIGGER_PX) triggerZoom();
+      if (scrollAccum.current > ZOOM_TRIGGER_PX) focusNearest();
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -154,7 +145,7 @@ export function OrbitStage() {
       el.removeEventListener("touchmove", onTouchMove);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotation, isCarousel, isZooming]);
+  }, [rotation, isCarousel]);
 
   // keyboard nav in carousel
   useEffect(() => {
@@ -177,13 +168,15 @@ export function OrbitStage() {
       className="absolute inset-0 flex items-center justify-center overflow-hidden"
     >
       <AnimatePresence mode="wait">
-        {isZooming ? (
-          <ZoomView key="zoom" work={WORKS[zoomIdx]} />
-        ) : isCarousel ? (
+        {isCarousel ? (
           <CarouselView
             key="carousel"
             idx={selectedIdx}
-            onClose={() => setSelectedIdx(null)}
+            onClose={() => {
+              scrollAccum.current = 0;
+              setTextIdx(0);
+              setSelectedIdx(null);
+            }}
             onPrev={prev}
             onNext={next}
             onOpen={(slug) => router.push(`/work/${slug}`)}
@@ -312,53 +305,6 @@ function OrbitItem({
   );
 }
 
-/* --------------------------------- Zoom view -------------------------------- */
-
-function ZoomView({ work }: { work: Work }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className="absolute inset-0 flex items-center justify-center pointer-events-none"
-    >
-      <motion.div
-        initial={{
-          width: "12vmin",
-          height: "12vmin",
-          borderRadius: "9999px",
-        }}
-        animate={{
-          width: "180vmax",
-          height: "180vmax",
-          borderRadius: "0px",
-        }}
-        transition={{
-          duration: ZOOM_DURATION_MS / 1000,
-          ease: [0.65, 0, 0.35, 1],
-        }}
-        className="overflow-hidden ring-1 ring-black/5 shadow-[0_8px_60px_rgba(0,0,0,0.18)]"
-      >
-        <MockThumb work={work} />
-      </motion.div>
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35, duration: 0.3 }}
-        className="absolute bottom-12 left-0 right-0 text-center"
-      >
-        <div className="text-[12px] tracking-[0.18em] uppercase text-white/70">
-          {work.tag}
-        </div>
-        <div className="text-[28px] font-medium text-white tracking-[-0.01em]">
-          {work.title}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
 /* ------------------------------- Carousel view ----------------------------- */
 
 function CarouselView({
@@ -401,10 +347,10 @@ function CarouselView({
 
       <motion.figure
         key={current.id}
-        initial={{ opacity: 0, scale: 0.94, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.35 }}
+        animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.94, y: -8 }}
-        transition={{ type: "spring", stiffness: 220, damping: 26 }}
+        transition={{ type: "spring", stiffness: 140, damping: 22, mass: 0.9 }}
         className="flex flex-col items-center gap-5"
       >
         <button
