@@ -1,93 +1,91 @@
 "use client";
 
 import {
-  AnimatePresence,
   motion,
   type MotionValue,
   useMotionValue,
+  useMotionValueEvent,
   useSpring,
   useTransform,
 } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WORKS, type Work } from "@/lib/works";
 import { MockThumb } from "./MockThumb";
 
 /**
- * Centre headline + a slowly rotating orbit of work thumbnails.
+ * One scroll value drives every phase of the homepage:
  *
- * Interaction:
- * - Wheel / touch rotates the whole orbit together — softly.
- * - After enough cumulative scroll the closest-to-front thumbnail zooms
- *   to full-screen and the router navigates to its case study.
- * - Click any thumbnail to open carousel mode (peek prev/next).
- * - In carousel mode, clicking the centre image opens the case study.
+ *   0.00 ─ tiny orbit, headline 1
+ *   0.33 ─ medium orbit, headline 2
+ *   0.55 ─ full orbit, headline 3 fading in
+ *   0.65 ─ orbit fades out, focused thumbnail fades in
+ *   0.85 ─ focused thumbnail morphs from circle to a wide rectangle
+ *   1.00 ─ router pushes to that work's case-study page
+ *
+ * Scrolling backward at any point reverses every step. The focused
+ * work is locked in once progress crosses 0.6 so the morph doesn't
+ * swap targets mid-flight.
  */
 
-const FOCUS_ANGLE = 270; // top of the viewport feels like "next up"
-const SEGMENT_PX = 900; // accumulated wheel delta per centre text
+const FOCUS_ANGLE = 270;
+const SCROLL_BUDGET_PX = 2800;
+const NAV_OVERSHOOT_PX = 600; // extra forward scroll after progress=1 to commit
 const CENTRE_TEXTS = [
   "AI-native studio building brands and web\nexperiences for high-growth startups",
   "Crafted from first principles —\npositioning, brand, and product in one room",
-  "Ready to ship. Scroll once more\nto step inside a project",
+  "Ready to ship. Keep scrolling\nto step inside a project",
 ];
-const ZOOM_TRIGGER_PX = SEGMENT_PX * CENTRE_TEXTS.length; // = 2700
-
-const CAROUSEL_COMMIT_PX = 500; // additional scroll in carousel before nav
 
 export function OrbitStage() {
   const router = useRouter();
-  const rotation = useMotionValue(0); // degrees
-  const smooth = useSpring(rotation, { stiffness: 38, damping: 28, mass: 1.1 });
-  const progressRaw = useMotionValue(0); // 0..1 — drives orbit scale
-  const progress = useSpring(progressRaw, { stiffness: 90, damping: 24, mass: 0.7 });
-  const orbitScale = useTransform(progress, [0, 1], [0.55, 1.05]);
+
+  const rotation = useMotionValue(0);
+  const smoothRotation = useSpring(rotation, {
+    stiffness: 38,
+    damping: 28,
+    mass: 1.1,
+  });
+
+  // raw scroll progress 0..1, smoothed with a spring for the visual
+  const progressRaw = useMotionValue(0);
+  const progress = useSpring(progressRaw, {
+    stiffness: 90,
+    damping: 24,
+    mass: 0.8,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAccum = useRef(0);
-  const carouselAccum = useRef(0);
   const navLockRef = useRef(false);
 
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [textIdx, setTextIdx] = useState(0);
-  const isCarousel = selectedIdx !== null;
+  const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
 
-  function updateTextFromScroll() {
-    const i = Math.min(
-      CENTRE_TEXTS.length - 1,
-      Math.floor(scrollAccum.current / SEGMENT_PX),
-    );
-    setTextIdx((curr) => (curr === i ? curr : i));
-  }
+  // ── derived motion values ────────────────────────────────────────────
+  const orbitScale = useTransform(progress, [0, 0.55], [0.55, 1.2]);
+  const orbitOpacity = useTransform(progress, [0.5, 0.68], [1, 0]);
+  const headlineOpacity = useTransform(
+    progress,
+    [0, 0.05, 0.55, 0.62],
+    [0, 1, 1, 0],
+  );
+  const centreDotOpacity = useTransform(progress, [0.55, 0.62], [1, 0]);
+  const focusOpacity = useTransform(progress, [0.55, 0.7], [0, 1]);
+  const focusScale = useTransform(progress, [0.55, 0.78], [0.4, 1]);
 
-  function updateProgress() {
-    progressRaw.set(Math.min(1, scrollAccum.current / ZOOM_TRIGGER_PX));
-  }
+  const morphP = useTransform(progress, [0.78, 1], [0, 1], { clamp: true });
+  const focusW = useTransform(
+    morphP,
+    [0, 1],
+    ["58vmin", "min(92vw, 1180px)"],
+  );
+  const focusH = useTransform(morphP, [0, 1], ["58vmin", "62vh"]);
+  const focusR = useTransform(morphP, [0, 1], ["9999px", "24px"]);
+  const focusY = useTransform(morphP, [0, 1], ["0%", "-12%"]);
 
-  // idle drift in orbit mode (paused while carousel is active)
-  useEffect(() => {
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-      if (!isCarousel) {
-        rotation.set(rotation.get() + dt * 3); // 3 deg/sec — gentle
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [rotation, isCarousel]);
-
-  const next = () =>
-    setSelectedIdx((i) => (i === null ? 0 : (i + 1) % WORKS.length));
-  const prev = () =>
-    setSelectedIdx((i) =>
-      i === null ? 0 : (i - 1 + WORKS.length) % WORKS.length,
-    );
-
-  function focusNearest() {
+  // ── progress side-effects ────────────────────────────────────────────
+  function pickNearest() {
     const r = ((rotation.get() % 360) + 360) % 360;
     let bestIdx = 0;
     let bestDist = Infinity;
@@ -102,46 +100,76 @@ export function OrbitStage() {
         bestIdx = i;
       }
     });
-    scrollAccum.current = 0;
-    carouselAccum.current = 0;
-    navLockRef.current = false;
-    setSelectedIdx(bestIdx);
+    return bestIdx;
   }
 
-  // wheel / touch
+  useMotionValueEvent(progressRaw, "change", (p) => {
+    // text index
+    const slot = Math.min(
+      CENTRE_TEXTS.length - 1,
+      Math.floor(p * CENTRE_TEXTS.length * 0.95),
+    );
+    setTextIdx((curr) => (curr === slot ? curr : slot));
+
+    // lock in / release the focused work
+    if (p > 0.55 && focusedIdx === null) {
+      setFocusedIdx(pickNearest());
+    } else if (p < 0.4 && focusedIdx !== null) {
+      setFocusedIdx(null);
+    }
+  });
+
+  // ── idle rotation drift ──────────────────────────────────────────────
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      // only drift while the orbit is still on stage
+      if (progressRaw.get() < 0.6) {
+        rotation.set(rotation.get() + dt * 3);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [rotation, progressRaw]);
+
+  // ── wheel / touch ────────────────────────────────────────────────────
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    let lastWheelAt = 0;
+    const commit = () => {
+      if (navLockRef.current) return;
+      if (focusedIdx === null) return;
+      navLockRef.current = true;
+      router.push(`/work/${WORKS[focusedIdx].slug}`);
+    };
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (isCarousel) {
-        if (navLockRef.current) return;
-        if (e.deltaY > 0) {
-          carouselAccum.current += e.deltaY;
-          if (carouselAccum.current > CAROUSEL_COMMIT_PX && selectedIdx !== null) {
-            navLockRef.current = true;
-            router.push(`/work/${WORKS[selectedIdx].slug}`);
-          }
-        } else {
-          // scrolling back: drain commit budget, allow prev/next via throttled steps
-          carouselAccum.current = Math.max(0, carouselAccum.current + e.deltaY);
-          const now = performance.now();
-          if (now - lastWheelAt > 320 && Math.abs(e.deltaY) > 10) {
-            lastWheelAt = now;
-            prev();
-          }
-        }
-        return;
-      }
+      if (navLockRef.current) return;
 
+      // rotation tracks signed delta for natural spin
       rotation.set(rotation.get() + e.deltaY * 0.18);
-      scrollAccum.current = Math.max(0, scrollAccum.current + Math.abs(e.deltaY));
-      updateTextFromScroll();
-      updateProgress();
-      if (scrollAccum.current > ZOOM_TRIGGER_PX) focusNearest();
+
+      // signed accumulation so scroll-up reverses everything
+      scrollAccum.current = Math.max(
+        0,
+        Math.min(
+          SCROLL_BUDGET_PX + NAV_OVERSHOOT_PX,
+          scrollAccum.current + e.deltaY,
+        ),
+      );
+      progressRaw.set(
+        Math.min(1, scrollAccum.current / SCROLL_BUDGET_PX),
+      );
+
+      if (scrollAccum.current >= SCROLL_BUDGET_PX + NAV_OVERSHOOT_PX) {
+        commit();
+      }
     };
 
     let touchY = 0;
@@ -149,26 +177,24 @@ export function OrbitStage() {
       touchY = e.touches[0].clientY;
     };
     const onTouchMove = (e: TouchEvent) => {
+      if (navLockRef.current) return;
       const dy = e.touches[0].clientY - touchY;
       touchY = e.touches[0].clientY;
-      if (isCarousel) {
-        if (navLockRef.current) return;
-        if (dy < 0) {
-          carouselAccum.current += -dy * 6;
-          if (carouselAccum.current > CAROUSEL_COMMIT_PX && selectedIdx !== null) {
-            navLockRef.current = true;
-            router.push(`/work/${WORKS[selectedIdx].slug}`);
-          }
-        } else if (dy > 40) {
-          prev();
-        }
-        return;
+      rotation.set(rotation.get() - dy * 0.5);
+      // dragging up (dy<0) advances forward, like a scroll wheel
+      scrollAccum.current = Math.max(
+        0,
+        Math.min(
+          SCROLL_BUDGET_PX + NAV_OVERSHOOT_PX,
+          scrollAccum.current - dy * 6,
+        ),
+      );
+      progressRaw.set(
+        Math.min(1, scrollAccum.current / SCROLL_BUDGET_PX),
+      );
+      if (scrollAccum.current >= SCROLL_BUDGET_PX + NAV_OVERSHOOT_PX) {
+        commit();
       }
-      rotation.set(rotation.get() - dy * 0.55);
-      scrollAccum.current += Math.abs(dy) * 6;
-      updateTextFromScroll();
-      updateProgress();
-      if (scrollAccum.current > ZOOM_TRIGGER_PX) focusNearest();
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -179,135 +205,74 @@ export function OrbitStage() {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotation, isCarousel]);
+  }, [rotation, progressRaw, focusedIdx, router]);
 
-  // keyboard nav in carousel
-  useEffect(() => {
-    if (!isCarousel) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelectedIdx(null);
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") next();
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") prev();
-      if (e.key === "Enter" && selectedIdx !== null) {
-        router.push(`/work/${WORKS[selectedIdx].slug}`);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isCarousel, selectedIdx, router]);
+  const focusedWork = focusedIdx === null ? null : WORKS[focusedIdx];
+  const centreText = CENTRE_TEXTS[textIdx] ?? CENTRE_TEXTS[0];
 
   return (
     <div
       ref={containerRef}
       className="absolute inset-0 flex items-center justify-center overflow-hidden"
     >
-      <AnimatePresence mode="wait">
-        {isCarousel ? (
-          <CarouselView
-            key="carousel"
-            idx={selectedIdx}
-            onClose={() => {
-              scrollAccum.current = 0;
-              carouselAccum.current = 0;
-              navLockRef.current = false;
-              progressRaw.set(0);
-              setTextIdx(0);
-              setSelectedIdx(null);
-            }}
-            onPrev={prev}
-            onNext={next}
-            onOpen={(slug) => router.push(`/work/${slug}`)}
-          />
-        ) : (
-          <OrbitView
-            key="orbit"
-            smooth={smooth}
-            orbitScale={orbitScale}
-            textIdx={textIdx}
-            onSelect={(i) => setSelectedIdx(i)}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+      {/* centre dot */}
+      <motion.span
+        style={{ opacity: centreDotOpacity }}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black"
+      />
 
-/* -------------------------------- Orbit view -------------------------------- */
-
-function OrbitView({
-  smooth,
-  orbitScale,
-  textIdx,
-  onSelect,
-}: {
-  smooth: ReturnType<typeof useSpring>;
-  orbitScale: MotionValue<number>;
-  textIdx: number;
-  onSelect: (i: number) => void;
-}) {
-  const text = CENTRE_TEXTS[textIdx] ?? CENTRE_TEXTS[0];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.35 }}
-      className="relative w-full h-full"
-    >
-      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black" />
-
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-8 text-center px-6 w-[44ch] max-w-[88vw]">
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={textIdx}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
-            className="text-[13px] sm:text-[13.5px] leading-[1.5] tracking-[-0.005em] text-black/75 whitespace-pre-line"
-          >
-            {text}
-          </motion.p>
-        </AnimatePresence>
-      </div>
-
-      <ProgressDots count={CENTRE_TEXTS.length} active={textIdx} />
-
+      {/* headline */}
       <motion.div
-        style={{ scale: orbitScale }}
+        style={{ opacity: headlineOpacity }}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-8 text-center px-6 w-[44ch] max-w-[88vw]"
+      >
+        <motion.p
+          key={textIdx}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+          className="text-[13.5px] sm:text-[14px] leading-[1.5] tracking-[-0.005em] text-black/75 whitespace-pre-line"
+        >
+          {centreText}
+        </motion.p>
+      </motion.div>
+
+      {/* orbiting thumbs (fade out as focus takes over) */}
+      <motion.div
+        style={{ scale: orbitScale, opacity: orbitOpacity }}
         className="absolute inset-0"
       >
         {WORKS.map((w, i) => (
           <OrbitItem
             key={w.id}
             work={w}
-            smooth={smooth}
-            onClick={() => onSelect(i)}
+            smooth={smoothRotation}
+            onClick={() => {
+              if (navLockRef.current) return;
+              navLockRef.current = true;
+              router.push(`/work/${WORKS[i].slug}`);
+            }}
           />
         ))}
       </motion.div>
-    </motion.div>
-  );
-}
 
-function ProgressDots({ count, active }: { count: number; active: number }) {
-  return (
-    <div className="absolute left-1/2 bottom-24 -translate-x-1/2 flex items-center gap-1.5">
-      {Array.from({ length: count }).map((_, i) => (
-        <span
-          key={i}
-          className={
-            i === active
-              ? "w-4 h-1 rounded-full bg-black/70 transition-all duration-300"
-              : "w-1 h-1 rounded-full bg-black/25 transition-all duration-300"
-          }
+      {/* focused item — fades in, scales up, then morphs to a rectangle */}
+      {focusedWork && (
+        <FocusedItem
+          work={focusedWork}
+          opacity={focusOpacity}
+          scale={focusScale}
+          width={focusW}
+          height={focusH}
+          borderRadius={focusR}
+          translateY={focusY}
         />
-      ))}
+      )}
     </div>
   );
 }
+
+/* -------------------------------- Orbit item -------------------------------- */
 
 function OrbitItem({
   work,
@@ -315,7 +280,7 @@ function OrbitItem({
   onClick,
 }: {
   work: Work;
-  smooth: ReturnType<typeof useSpring>;
+  smooth: MotionValue<number>;
   onClick: () => void;
 }) {
   const x = useTransform(smooth, (r) => {
@@ -327,7 +292,7 @@ function OrbitItem({
     return `${Math.sin(a) * work.radius}vmin`;
   });
 
-  const sizeStyle = `${work.size}vmin`;
+  const sizeStyle = useMemo(() => `${work.size}vmin`, [work.size]);
 
   return (
     <motion.button
@@ -351,145 +316,36 @@ function OrbitItem({
   );
 }
 
-/* ------------------------------- Carousel view ----------------------------- */
+/* ------------------------------- Focused item ------------------------------ */
 
-function CarouselView({
-  idx,
-  onClose,
-  onPrev,
-  onNext,
-  onOpen,
-}: {
-  idx: number;
-  onClose: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  onOpen: (slug: string) => void;
-}) {
-  const prevIdx = (idx - 1 + WORKS.length) % WORKS.length;
-  const nextIdx = (idx + 1) % WORKS.length;
-  const current = WORKS[idx];
-  const prevWork = WORKS[prevIdx];
-  const nextWork = WORKS[nextIdx];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
-      className="relative w-full h-full flex items-center justify-center"
-    >
-      <button
-        type="button"
-        onClick={onPrev}
-        aria-label="Previous project"
-        className="absolute left-6 sm:left-10 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-[#0a0a0a] text-white flex items-center justify-center hover:bg-zinc-800 transition-colors"
-      >
-        <Arrow direction="left" />
-      </button>
-
-      <PeekItem work={prevWork} position="top" onClick={onPrev} />
-
-      <motion.figure
-        key={current.id}
-        initial={{ opacity: 0, scale: 0.35 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.94, y: -8 }}
-        transition={{ type: "spring", stiffness: 140, damping: 22, mass: 0.9 }}
-        className="flex flex-col items-center gap-5"
-      >
-        <button
-          type="button"
-          onClick={() => onOpen(current.slug)}
-          aria-label={`View ${current.title} case study`}
-          className="relative rounded-full overflow-hidden ring-1 ring-black/10 shadow-[0_18px_60px_rgba(0,0,0,0.09)] cursor-pointer"
-          style={{
-            width: "min(58vmin, 540px)",
-            height: "min(58vmin, 540px)",
-          }}
-        >
-          <MockThumb work={current} />
-        </button>
-        <figcaption className="text-center">
-          <div className="text-[26px] font-medium tracking-[-0.01em] text-black/90">
-            {current.title}
-          </div>
-        </figcaption>
-      </motion.figure>
-
-      <PeekItem work={nextWork} position="bottom" onClick={onNext} />
-
-      <button
-        type="button"
-        onClick={onNext}
-        aria-label="Next project"
-        className="absolute right-6 sm:right-10 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-[#0a0a0a] text-white flex items-center justify-center hover:bg-zinc-800 transition-colors"
-      >
-        <Arrow direction="right" />
-      </button>
-
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Back to overview"
-        className="absolute inset-x-0 top-0 h-24 sm:h-32 cursor-zoom-out"
-      />
-    </motion.div>
-  );
-}
-
-function PeekItem({
+function FocusedItem({
   work,
-  position,
-  onClick,
+  opacity,
+  scale,
+  width,
+  height,
+  borderRadius,
+  translateY,
 }: {
   work: Work;
-  position: "top" | "bottom";
-  onClick: () => void;
+  opacity: MotionValue<number>;
+  scale: MotionValue<number>;
+  width: MotionValue<string>;
+  height: MotionValue<string>;
+  borderRadius: MotionValue<string>;
+  translateY: MotionValue<string>;
 }) {
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      aria-label={`${position === "top" ? "Previous" : "Next"} — ${work.title}`}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.25, delay: 0.05 }}
-      className={`absolute left-1/2 -translate-x-1/2 rounded-full overflow-hidden ring-1 ring-black/5 shadow-[0_4px_18px_rgba(0,0,0,0.06)] cursor-pointer ${
-        position === "top"
-          ? "-translate-y-[calc(50%+34vmin)]"
-          : "translate-y-[calc(50%+22vmin)]"
-      }`}
-      style={{
-        top: "50%",
-        width: "min(22vmin, 200px)",
-        height: "min(22vmin, 200px)",
-      }}
+    <motion.div
+      style={{ opacity, scale, y: translateY }}
+      className="absolute pointer-events-none"
     >
-      <MockThumb work={work} />
-    </motion.button>
-  );
-}
-
-function Arrow({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      style={{ transform: direction === "left" ? "rotate(180deg)" : "none" }}
-      aria-hidden
-    >
-      <path
-        d="M3 7 H11 M7 3 L11 7 L7 11"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      <motion.div
+        style={{ width, height, borderRadius }}
+        className="overflow-hidden ring-1 ring-black/5 shadow-[0_30px_80px_rgba(0,0,0,0.12)]"
+      >
+        <MockThumb work={work} />
+      </motion.div>
+    </motion.div>
   );
 }
