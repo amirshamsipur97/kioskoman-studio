@@ -23,11 +23,11 @@ const STEPS: Step[] = [
     title: "Discover the wedge.",
     body: "Two weeks of structured listening — customer calls, market scan, and a sharp competitive read. We come back with the wedge that actually wins.",
     bullets: ["Customer & competitor calls", "Positioning one-pager"],
-    bg: "#f1ece1",
-    ink: "#0a0a0a",
-    muted: "rgba(10,10,10,0.55)",
-    pillBg: "#0a0a0a",
-    pillInk: "#ffffff",
+    bg: "#181613",
+    ink: "#f7f5ef",
+    muted: "rgba(247,245,239,0.55)",
+    pillBg: "#f7f5ef",
+    pillInk: "#0a0a0a",
     preview: "tiles",
   },
   {
@@ -36,11 +36,11 @@ const STEPS: Step[] = [
     title: "Define the scope.",
     body: "We narrow on a narrative, a scope, and a calendar. Everyone signs the same one-pager before a single pixel moves.",
     bullets: ["Brand & site narrative", "Sprint plan & calendar"],
-    bg: "#cdd9c5",
-    ink: "#0a0a0a",
-    muted: "rgba(10,10,10,0.55)",
-    pillBg: "#0a0a0a",
-    pillInk: "#ffffff",
+    bg: "#15201a",
+    ink: "#f7f5ef",
+    muted: "rgba(247,245,239,0.55)",
+    pillBg: "#f7f5ef",
+    pillInk: "#0a0a0a",
     preview: "swatches",
   },
   {
@@ -50,9 +50,9 @@ const STEPS: Step[] = [
     body: "Concept, iteration and review happen in Figma, GitHub, and Linear — wherever your team already lives. Pairs of designer + engineer ship weekly.",
     bullets: ["Designer-engineer pairs", "Weekly ship demos"],
     bg: "#0a0a0a",
-    ink: "#fafaf7",
-    muted: "rgba(250,250,247,0.55)",
-    pillBg: "#fafaf7",
+    ink: "#f7f5ef",
+    muted: "rgba(247,245,239,0.55)",
+    pillBg: "#f7f5ef",
     pillInk: "#0a0a0a",
     preview: "timeline",
   },
@@ -62,11 +62,11 @@ const STEPS: Step[] = [
     title: "Deliver and stay on tap.",
     body: "Production launch, handover docs, and a 30-day post-launch window. We stay on tap so the team never ships alone.",
     bullets: ["Production deploy", "30-day post-launch retainer"],
-    bg: "#efe6d5",
-    ink: "#0a0a0a",
-    muted: "rgba(10,10,10,0.55)",
-    pillBg: "#0a0a0a",
-    pillInk: "#ffffff",
+    bg: "#1f1a14",
+    ink: "#f7f5ef",
+    muted: "rgba(247,245,239,0.55)",
+    pillBg: "#f7f5ef",
+    pillInk: "#0a0a0a",
     preview: "ship",
   },
 ];
@@ -74,13 +74,13 @@ const STEPS: Step[] = [
 export function ProcessSteps() {
   return (
     <section id="approach" aria-label="How we work">
-      <div className="px-6 pt-28 pb-6 sm:pt-36 bg-white">
+      <div className="px-6 pt-28 pb-6 sm:pt-36 bg-[#0a0a0a] text-[#f7f5ef]">
         <div className="mx-auto max-w-[1180px] flex items-end justify-between flex-wrap gap-6">
           <h2 className="text-[44px] sm:text-[64px] leading-[0.98] tracking-[-0.025em] max-w-[20ch] font-medium">
             From kickoff to live in
             <br className="hidden sm:block" /> four crisp steps.
           </h2>
-          <p className="text-[13.5px] text-black/55 max-w-[28ch] text-right">
+          <p className="text-[13.5px] text-white/55 max-w-[28ch] text-right">
             Sign on for a fixed-scope project, or stay on retainer.
             Either way, the process below is the same.
           </p>

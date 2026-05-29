@@ -69,11 +69,11 @@ export function ServicesTabs() {
   return (
     <section
       id="services"
-      className="relative w-full px-6 py-28 sm:py-36 bg-[#fafaf7]"
+      className="relative w-full px-6 py-28 sm:py-36 bg-[#0a0a0a] text-[#f7f5ef]"
     >
       <div className="mx-auto max-w-[1180px]">
         <div className="flex items-start justify-between flex-wrap gap-6 mb-10">
-          <p className="text-[11px] tracking-[0.22em] uppercase text-black/45">
+          <p className="text-[11px] tracking-[0.22em] uppercase text-white/45">
             Services
           </p>
           <h2 className="text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.02em] max-w-[18ch] font-medium">
@@ -89,8 +89,8 @@ export function ServicesTabs() {
               onClick={() => setActiveId(s.id)}
               className={
                 s.id === activeId
-                  ? "rounded-full bg-black text-white px-4 py-2 text-[13px] font-medium"
-                  : "rounded-full bg-black/[0.04] text-black/65 hover:bg-black/[0.08] px-4 py-2 text-[13px] transition-colors"
+                  ? "rounded-full bg-white text-black px-4 py-2 text-[13px] font-medium"
+                  : "rounded-full bg-white/[0.06] text-white/65 hover:bg-white/[0.12] px-4 py-2 text-[13px] transition-colors"
               }
               aria-pressed={s.id === activeId}
             >
@@ -112,7 +112,7 @@ export function ServicesTabs() {
               <h3 className="text-[28px] sm:text-[34px] leading-[1.15] tracking-[-0.015em] font-medium">
                 {active.headline}
               </h3>
-              <p className="mt-4 text-[15.5px] leading-[1.6] text-black/65 max-w-[52ch]">
+              <p className="mt-4 text-[15.5px] leading-[1.6] text-white/65 max-w-[52ch]">
                 {active.body}
               </p>
             </div>
@@ -120,10 +120,10 @@ export function ServicesTabs() {
               {active.bullets.map((b) => (
                 <li
                   key={b}
-                  className="flex items-start gap-3 rounded-2xl bg-white ring-1 ring-black/8 px-4 py-3.5"
+                  className="flex items-start gap-3 rounded-2xl bg-white/[0.04] ring-1 ring-white/10 px-4 py-3.5"
                 >
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-[14px] leading-[1.45] text-black/85">{b}</span>
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="text-[14px] leading-[1.45] text-white/85">{b}</span>
                 </li>
               ))}
             </ul>

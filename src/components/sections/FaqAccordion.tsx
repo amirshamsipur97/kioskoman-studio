@@ -39,10 +39,10 @@ export function FaqAccordion() {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="relative w-full px-6 py-28 sm:py-36 bg-[#fafaf7]">
+    <section id="faq" className="relative w-full px-6 py-28 sm:py-36 bg-[#0a0a0a] text-[#f7f5ef]">
       <div className="mx-auto max-w-[920px]">
         <div className="flex items-start justify-between flex-wrap gap-6 mb-12">
-          <p className="text-[11px] tracking-[0.22em] uppercase text-black/45">
+          <p className="text-[11px] tracking-[0.22em] uppercase text-white/45">
             FAQ
           </p>
           <h2 className="text-[34px] sm:text-[44px] leading-[1.05] tracking-[-0.02em] max-w-[18ch] font-medium">
@@ -56,7 +56,7 @@ export function FaqAccordion() {
             return (
               <li
                 key={item.q}
-                className="border-t border-black/10 last:border-b last:border-black/10"
+                className="border-t border-white/10 last:border-b last:border-white/10"
               >
                 <button
                   type="button"
@@ -70,7 +70,7 @@ export function FaqAccordion() {
                   <span
                     className={
                       "shrink-0 w-7 h-7 rounded-full grid place-items-center transition-colors " +
-                      (open ? "bg-black text-white" : "bg-black/[0.06] text-black/65")
+                      (open ? "bg-white text-black" : "bg-white/[0.08] text-white/65")
                     }
                   >
                     <svg
@@ -102,7 +102,7 @@ export function FaqAccordion() {
                       transition={{ duration: 0.28, ease: "easeOut" }}
                       className="overflow-hidden"
                     >
-                      <p className="pb-5 pr-12 text-[14.5px] leading-[1.6] text-black/65">
+                      <p className="pb-5 pr-12 text-[14.5px] leading-[1.6] text-white/65">
                         {item.a}
                       </p>
                     </motion.div>

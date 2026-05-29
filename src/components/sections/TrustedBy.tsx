@@ -16,10 +16,10 @@ export function TrustedBy() {
   return (
     <section
       aria-label="Trusted by"
-      className="relative w-full px-6 py-20 sm:py-24 bg-[#fafaf7]"
+      className="relative w-full px-6 py-20 sm:py-24 bg-[#0a0a0a] text-[#f7f5ef]"
     >
       <div className="mx-auto max-w-[1180px]">
-        <p className="text-[11px] tracking-[0.22em] uppercase text-black/45 mb-8 text-center">
+        <p className="text-[11px] tracking-[0.22em] uppercase text-white/45 mb-8 text-center">
           Trusted by founders shipping at
         </p>
         <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -30,7 +30,7 @@ export function TrustedBy() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.45, delay: i * 0.04, ease: "easeOut" }}
-              className="h-20 rounded-2xl bg-white ring-1 ring-black/8 grid place-items-center"
+              className="h-20 rounded-2xl bg-white/[0.04] ring-1 ring-white/10 grid place-items-center"
             >
               <LogoMark id={logo.id} label={logo.label} />
             </motion.li>
@@ -44,7 +44,7 @@ export function TrustedBy() {
 function LogoMark({ id, label }: { id: string; label: string }) {
   // Each placeholder mark is a tiny inline SVG paired with the label.
   return (
-    <div className="flex items-center gap-2 text-black/70">
+    <div className="flex items-center gap-2 text-white/75">
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
         {id === "altar" && (
           <path d="M4 20 L12 4 L20 20 H4 Z M9 14 H15" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinejoin="round" />

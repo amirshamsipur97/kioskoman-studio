@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { NavPill } from "@/components/NavPill";
 import { CtaPill } from "@/components/CtaPill";
-import { OrbitStage } from "@/components/OrbitStage";
+import { HeroBoard } from "@/components/HeroBoard";
 import { ChatPanel } from "@/components/ChatPanel";
 import { SpinnerDots } from "@/components/SpinnerDots";
 import { ServicesTabs } from "@/components/sections/ServicesTabs";
@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <>
       {/* fixed chrome */}
-      <div className="fixed top-6 left-6 z-50 mix-blend-difference text-white">
+      <div className="fixed top-6 left-6 z-50 text-white">
         <Logo />
       </div>
       <NavPill />
@@ -28,13 +28,12 @@ export default function Home() {
       {!chatOpen && <CtaPill onClick={() => setChatOpen(true)} />}
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
 
-      <div className="fixed bottom-7 right-7 z-30 text-black/70 mix-blend-difference" aria-hidden>
+      <div className="fixed bottom-7 right-7 z-30 text-white/70" aria-hidden>
         <SpinnerDots size={22} />
       </div>
 
-      {/* scrollable main */}
       <main className="relative">
-        <OrbitStage />
+        <HeroBoard />
         <ServicesTabs />
         <SelectedWork />
         <TrustedBy />

@@ -4,7 +4,7 @@ export function Logo() {
       className="font-bold text-[22px] tracking-tight leading-none select-none"
       aria-label="Kioskoman Studio"
     >
-      K<span className="opacity-60">/</span>S
+      K<span className="opacity-50">/</span>S
     </div>
   );
 }
