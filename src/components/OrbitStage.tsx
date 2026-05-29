@@ -146,7 +146,7 @@ function OrbitItem({
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.96 }}
       transition={{ type: "spring", stiffness: 300, damping: 22 }}
-      className="absolute left-1/2 top-1/2 rounded-full overflow-hidden cursor-pointer shadow-[0_2px_18px_rgba(0,0,0,0.07)] ring-1 ring-black/5"
+      className="absolute left-1/2 top-1/2 rounded-[28%] overflow-hidden cursor-pointer shadow-[0_2px_18px_rgba(0,0,0,0.07)] ring-1 ring-black/5"
       aria-label={`Open ${work.title}`}
     >
       <MockThumb work={work} />
