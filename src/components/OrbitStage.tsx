@@ -24,9 +24,9 @@ import { MockThumb } from "./MockThumb";
 
 const CYCLE_MS = 5200;
 const CENTRE_TEXTS = [
-  "AI-native studio building brands and web\nexperiences for high-growth startups",
-  "Crafted from first principles —\npositioning, brand, and product in one room",
-  "Pick a project to step inside,\nor scroll on to learn how we work",
+  "Brands, instantly\nlaunch-ready.",
+  "Web that scales —\ndesigned to ship.",
+  "Studio-quality,\nwithout the studio.",
 ];
 
 export function OrbitStage() {
@@ -67,23 +67,25 @@ export function OrbitStage() {
       onMouseEnter={() => (hoverRef.current = true)}
       onMouseLeave={() => (hoverRef.current = false)}
     >
-      {/* centre dot */}
-      <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-black" />
-
-      {/* cycling headline */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-9 text-center px-6 w-[44ch] max-w-[88vw]">
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={textIdx}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
-            className="text-[13.5px] sm:text-[14px] leading-[1.55] tracking-[-0.005em] text-black/75 whitespace-pre-line"
-          >
-            {CENTRE_TEXTS[textIdx]}
-          </motion.p>
-        </AnimatePresence>
+      {/* centre upload card */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={() => router.push("#contact")}
+          className="pointer-events-auto w-[88px] h-[88px] rounded-[24%] bg-white ring-1 ring-black/8 shadow-[0_2px_18px_rgba(0,0,0,0.05)] grid place-items-center hover:scale-[1.04] active:scale-[0.98] transition-transform"
+          aria-label="Start a project"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M21 12.5L12.5 21a4.5 4.5 0 0 1-6.4-6.4l9-9a3 3 0 0 1 4.3 4.3l-9 9a1.5 1.5 0 0 1-2.1-2.1l8-8"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        <span className="text-[12.5px] text-black/55">Start a project</span>
       </div>
 
       {/* orbiting tiles */}
@@ -98,13 +100,34 @@ export function OrbitStage() {
         ))}
       </div>
 
+      {/* bottom-left display headline (cycles) */}
+      <div className="pointer-events-none absolute left-6 sm:left-10 bottom-10 sm:bottom-14 max-w-[88vw]">
+        <AnimatePresence mode="wait">
+          <motion.h1
+            key={textIdx}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            className="text-[42px] sm:text-[64px] md:text-[78px] leading-[0.96] tracking-[-0.028em] font-medium whitespace-pre-line text-black"
+          >
+            <span className="text-black">{CENTRE_TEXTS[textIdx].split("\n")[0]}</span>
+            <br />
+            <span className="text-black/45">
+              {CENTRE_TEXTS[textIdx].split("\n")[1] ?? ""}
+            </span>
+          </motion.h1>
+        </AnimatePresence>
+      </div>
+
       {/* scroll cue */}
-      <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-[11px] tracking-[0.22em] text-black/40 uppercase">
-        <span>Scroll</span>
-        <span
-          className="block w-px h-8 bg-black/15"
-          style={{ animation: "pulse-soft 2.2s ease-in-out infinite" }}
-        />
+      <div className="pointer-events-none absolute bottom-10 right-6 sm:right-10 text-[11px] tracking-[0.24em] text-black/40 uppercase">
+        Scroll down
+      </div>
+
+      {/* centre copyright */}
+      <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 text-[11px] text-black/35">
+        © {new Date().getFullYear()}
       </div>
     </section>
   );

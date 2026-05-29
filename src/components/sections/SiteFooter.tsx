@@ -77,7 +77,53 @@ export function SiteFooter() {
           <span>© {new Date().getFullYear()} Kioskoman Studio. All rights reserved.</span>
           <span>Crafted in-house · Deployed on Vercel</span>
         </div>
+
+        <DotMatrix />
       </div>
     </footer>
+  );
+}
+
+/**
+ * Decorative dot grid for the bottom of the footer. Two columns of
+ * brighter dots form a soft "K / S" visual rhythm without spelling
+ * anything literal.
+ */
+function DotMatrix() {
+  const cols = 56;
+  const rows = 9;
+  // a sparse set of "highlight" cells that vaguely echo two letterforms
+  const highlight = new Set<string>([
+    // left cluster
+    "18-1","18-2","18-3","18-4","18-5","18-6","18-7",
+    "19-1","19-4","19-7",
+    "20-1","20-3","20-5","20-7",
+    "21-1","21-2","21-3","21-4","21-5","21-6","21-7",
+    // right cluster
+    "31-2","31-3","31-4","31-5","31-6",
+    "32-1","32-7",
+    "33-1","33-2","33-3","33-4","33-5","33-6","33-7",
+    "34-7","34-3","34-4",
+    "35-1","35-2","35-3","35-4","35-5","35-6",
+  ]);
+
+  return (
+    <div className="mt-10 grid gap-2 select-none" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      {Array.from({ length: cols * rows }).map((_, i) => {
+        const x = i % cols;
+        const y = Math.floor(i / cols);
+        const on = highlight.has(`${x}-${y}`);
+        return (
+          <span
+            key={i}
+            className={
+              on
+                ? "block w-1.5 h-1.5 rounded-full bg-white/75"
+                : "block w-1.5 h-1.5 rounded-full bg-white/12"
+            }
+          />
+        );
+      })}
+    </div>
   );
 }
